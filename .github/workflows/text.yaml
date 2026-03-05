@@ -2,9 +2,9 @@ name: Calcify AI CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -13,6 +13,14 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+
+    # 🔎 DEBUG STEP (temporary)
+    - name: Show repo structure
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "Repository structure:"
+        ls -R
 
     # ----------------------
     # FRONTEND (React + Vite)
