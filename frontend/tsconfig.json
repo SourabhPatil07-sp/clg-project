@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "target": "ESNext",
+    "module": "ESNext",
+    "skipLibCheck": true
   },
   "files": [],
   "references": [
