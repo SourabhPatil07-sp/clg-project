@@ -32,12 +32,12 @@ jobs:
 
     - name: Install Frontend Dependencies
       run: |
-        cd Demo/frontend
+        cd frontend
         npm install
 
     - name: Build Frontend
       run: |
-        cd Demo/frontend
+        cd frontend
         npm run build
 
     # ----------------------
@@ -50,10 +50,10 @@ jobs:
 
     - name: Install Backend Dependencies
       run: |
-        cd Demo/backend
+        cd backend
         pip install -r requirements.txt
 
     - name: Check Backend Import
       run: |
-        cd Demo/backend
+        cd backend
         python -m py_compile main.py
