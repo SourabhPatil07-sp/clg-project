@@ -14,7 +14,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # 🔎 DEBUG STEP (temporary)
+    # 🔎 DEBUG STEP
     - name: Show repo structure
       run: |
         echo "Current directory:"
@@ -32,12 +32,12 @@ jobs:
 
     - name: Install Frontend Dependencies
       run: |
-        cd frontend
+        cd Demo/frontend
         npm install
 
     - name: Build Frontend
       run: |
-        cd frontend
+        cd Demo/frontend
         npm run build
 
     # ----------------------
@@ -50,10 +50,10 @@ jobs:
 
     - name: Install Backend Dependencies
       run: |
-        cd backend
+        cd Demo/backend
         pip install -r requirements.txt
 
     - name: Check Backend Import
       run: |
-        cd backend
+        cd Demo/backend
         python -m py_compile main.py
