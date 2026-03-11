@@ -1,61 +1,39 @@
-name: Calcify AI CI/CD Pipeline
+name: Calcify AI CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    # Checkout Code
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-    # -------------------------
-    # FRONTEND BUILD
-    # -------------------------
+      - name: Install Frontend
+        working-directory: frontend
+        run: npm install
 
-    - name: Setup Node
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
+      - name: Build Frontend
+        working-directory: frontend
+        run: npm run build
 
-    - name: Install Frontend Dependencies
-      working-directory: frontend
-      run: npm install
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-    - name: Build Frontend
-      working-directory: frontend
-      run: npm run build
+      - name: Install Backend
+        working-directory: backend
+        run: pip install -r requirements.txt
 
-    # -------------------------
-    # BACKEND BUILD
-    # -------------------------
-
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
-
-    - name: Install Backend Dependencies
-      working-directory: backend
-      run: pip install -r requirements.txt
-
-    - name: Backend Check
-      working-directory: backend
-      run: python -m py_compile main.py
-
-
-  deploy:
-
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-
-    - name: Deploy Notification
-      run: echo "Deployment step executed successfully!"
+      - name: Check Backend
+        working-directory: backend
+        run: python -m py_compile main.py
