@@ -59,15 +59,12 @@
   }
 }
 
-<<<<<<< HEAD
 
- @layer base {
-=======
 @layer base {
   * {
     @apply border-gray-200;
   }
->>>>>>> e6a64708fb79500d9832d7f9f167e93e0da5600c
+
   body {
     @apply bg-background text-foreground;
   }
