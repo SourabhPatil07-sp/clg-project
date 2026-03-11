@@ -3,8 +3,6 @@ name: Calcify AI CI
 on:
   push:
     branches: ["main"]
-  pull_request:
-    branches: ["main"]
 
 jobs:
   build:
@@ -14,40 +12,30 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # 🔎 Debug repository structure
-    - name: Show repo structure
-      run: |
-        pwd
-        ls -R
-
-    # ----------------------
-    # FRONTEND (React + Vite)
-    # ----------------------
-    - name: Setup Node.js
+    # Frontend
+    - name: Setup Node
       uses: actions/setup-node@v3
       with:
         node-version: 18
 
-    - name: Install Frontend Dependencies
-      working-directory: Demo/frontend
+    - name: Install frontend dependencies
+      working-directory: frontend
       run: npm install
 
-    - name: Build Frontend
-      working-directory: Demo/frontend
+    - name: Build frontend
+      working-directory: frontend
       run: npm run build
 
-    # ----------------------
-    # BACKEND (FastAPI)
-    # ----------------------
+    # Backend
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: "3.10"
 
-    - name: Install Backend Dependencies
-      working-directory: Demo/backend
+    - name: Install backend dependencies
+      working-directory: backend
       run: pip install -r requirements.txt
 
-    - name: Validate Backend
-      working-directory: Demo/backend
+    - name: Check backend
+      working-directory: backend
       run: python -m py_compile main.py
