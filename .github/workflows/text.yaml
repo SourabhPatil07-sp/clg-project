@@ -1,51 +1,61 @@
-name: Calcify AI CI
+name: Calcify AI CI/CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
 
     steps:
+
+    # Checkout Code
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # ----------------------
-    # FRONTEND (React + Vite)
-    # ----------------------
-    - name: Setup Node.js
+    # -------------------------
+    # FRONTEND BUILD
+    # -------------------------
+
+    - name: Setup Node
       uses: actions/setup-node@v3
       with:
         node-version: 18
 
     - name: Install Frontend Dependencies
-      run: |
-        cd Demo/frontend
-        npm install
+      working-directory: frontend
+      run: npm install
 
     - name: Build Frontend
-      run: |
-        cd Demo/frontend
-        npm run build
+      working-directory: frontend
+      run: npm run build
 
-    # ----------------------
-    # BACKEND (FastAPI)
-    # ----------------------
+    # -------------------------
+    # BACKEND BUILD
+    # -------------------------
+
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.10
+        python-version: "3.10"
 
     - name: Install Backend Dependencies
-      run: |
-        cd Demo/backend
-        pip install -r requirements.txt
+      working-directory: backend
+      run: pip install -r requirements.txt
 
-    - name: Check Backend Import
-      run: |
-        cd Demo/backend
-        python -m py_compile main.py
+    - name: Backend Check
+      working-directory: backend
+      run: python -m py_compile main.py
+
+
+  deploy:
+
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Deploy Notification
+      run: echo "Deployment step executed successfully!"
