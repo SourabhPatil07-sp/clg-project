@@ -14,12 +14,10 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # 🔎 DEBUG STEP
+    # 🔎 Debug repository structure
     - name: Show repo structure
       run: |
-        echo "Current directory:"
         pwd
-        echo "Repository structure:"
         ls -R
 
     # ----------------------
@@ -31,14 +29,12 @@ jobs:
         node-version: 18
 
     - name: Install Frontend Dependencies
-      run: |
-        cd Demo/frontend
-        npm install
+      working-directory: Demo/frontend
+      run: npm install
 
     - name: Build Frontend
-      run: |
-        cd Demo/frontend
-        npm run build
+      working-directory: Demo/frontend
+      run: npm run build
 
     # ----------------------
     # BACKEND (FastAPI)
@@ -46,14 +42,12 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.10
+        python-version: "3.10"
 
     - name: Install Backend Dependencies
-      run: |
-        cd Demo/backend
-        pip install -r requirements.txt
+      working-directory: Demo/backend
+      run: pip install -r requirements.txt
 
-    - name: Check Backend Import
-      run: |
-        cd Demo/backend
-        python -m py_compile main.py
+    - name: Validate Backend
+      working-directory: Demo/backend
+      run: python -m py_compile main.py
