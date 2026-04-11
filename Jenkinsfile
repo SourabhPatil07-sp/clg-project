@@ -1,168 +1,111 @@
 pipeline {
     agent any
-
+    
+    parameters {
+        string(name: 'ECR_REPO_NAME', defaultValue: 'patil', description: 'Enter repository name')
+        string(name: 'AWS_ACCOUNT_ID', defaultValue: '089959488660', description: 'Enter AWS Account ID') // Added missing quote
+    }
+    
+    tools {
+        jdk 'JDK'
+        nodejs 'NodeJS'
+    }
+    
     environment {
-        AWS_ACCOUNT_ID = "089959488660"
-        AWS_REGION = "us-east-1"
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        BACKEND_IMAGE_NAME = "calcify-ai/backend"
-        FRONTEND_IMAGE_NAME = "calcify-ai/frontend"
-        BACKEND_IMAGE_TAG = "${BUILD_ID}"
-        FRONTEND_IMAGE_TAG = "${BUILD_ID}"
-        EKS_CLUSTER_NAME = "calcify-Ai-cluster"
-        KUBECONFIG = "${WORKSPACE}/.kube/config"
+        SCANNER_HOME = tool 'SonarQube Scanner'
     }
-
+    
     stages {
-        stage('Checkout') {
+        stage('1. Git Checkout') {
             steps {
-                echo "🔄 Checking out code..."
-                checkout scm
+                git branch: 'main', url: 'https://github.com/SourabhPatil07-sp/clg-project.git'
             }
         }
-
-        stage('Build Backend') {
+        
+        stage('2. SonarQube Analysis') {
             steps {
-                echo "🏗️ Building backend Docker image..."
-                dir('backend') {
-                    script {
-                        sh '''
-                            docker build -t ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:${BACKEND_IMAGE_TAG} \
-                                         -t ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:latest .
-                        '''
-                    }
+                withSonarQubeEnv ('SonarQube') {
+                    sh """
+                    $SCANNER_HOME/bin/sonar-scanner \
+                    -Dsonar.projectName=patil \
+                    -Dsonar.projectKey=patil
+                    """
                 }
             }
         }
-
-        stage('Build Frontend') {
+        
+        stage('3. Quality Gate') {
             steps {
-                echo "🏗️ Building frontend Docker image..."
-                dir('frontend') {
-                    script {
-                        sh '''
-                            docker build -t ${ECR_REGISTRY}/${FRONTEND_IMAGE_NAME}:${FRONTEND_IMAGE_TAG} \
-                                         -t ${ECR_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest .
-                        '''
-                    }
+                waitForQualityGate abortPipeline: false, 
+                credentialsId: 'sonar-token'
+            }
+        }
+        
+        stage('4. Install npm') {
+            steps {
+                sh "npm install"
+            }
+        }
+        
+        stage('5. Trivy Scan') {
+            steps {
+                sh "trivy fs . > trivy.txt"
+            }
+        }
+        
+        stage('6. Build Docker Image') {
+            steps {
+                sh "docker build -t ${params.ECR_REPO_NAME} ."
+            }
+        }
+        
+        stage('7. Create ECR repo') {
+            steps {
+                withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'), 
+                                 string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
+                    sh """
+                    aws configure set aws_access_key_id $AWS_ACCESS_KEY
+                    aws configure set aws_secret_access_key $AWS_SECRET_KEY
+                    aws ecr describe-repositories --repository-names ${params.ECR_REPO_NAME} --region us-east-1 || \
+                    aws ecr create-repository --repository-name ${params.ECR_REPO_NAME} --region us-east-1
+                    """
                 }
             }
         }
-
-        stage('Test Backend') {
+        
+        stage('8. Login to ECR & tag image') {
             steps {
-                echo "🧪 Testing backend..."
-                dir('backend') {
-                    script {
-                        sh '''
-                            docker run --rm ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:${BACKEND_IMAGE_TAG} \
-                                python -m pytest . || true
-                        '''
-                    }
+                withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'), 
+                                 string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
+                    sh """
+                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+                    docker tag ${params.ECR_REPO_NAME} ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:${BUILD_NUMBER}
+                    docker tag ${params.ECR_REPO_NAME} ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:latest
+                    """
                 }
             }
         }
-
-        stage('Scan Images') {
+        
+        stage('9. Push image to ECR') {
             steps {
-                echo "🔍 Scanning Docker images for vulnerabilities..."
-                script {
-                    sh '''
-                        # Install trivy for image scanning (if not present)
-                        which trivy || (curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin)
-                        
-                        trivy image --severity HIGH,CRITICAL ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:${BACKEND_IMAGE_TAG} || true
-                        trivy image --severity HIGH,CRITICAL ${ECR_REGISTRY}/${FRONTEND_IMAGE_NAME}:${FRONTEND_IMAGE_TAG} || true
-                    '''
+                withCredentials([string(credentialsId: 'access-key', variable: 'AWS_ACCESS_KEY'), 
+                                 string(credentialsId: 'secret-key', variable: 'AWS_SECRET_KEY')]) {
+                    sh """
+                    docker push ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:${BUILD_NUMBER}
+                    docker push ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:latest
+                    """
                 }
             }
         }
-
-        stage('Push to ECR') {
+        
+        stage('10. Cleanup Images') {
             steps {
-                echo "📤 Pushing images to ECR..."
-                script {
-                    sh '''
-                        # Login to ECR
-                        aws ecr get-login-password --region ${AWS_REGION} | \
-                            docker login --username AWS --password-stdin ${ECR_REGISTRY}
-
-                        # Create ECR repositories if they don't exist
-                        aws ecr create-repository --repository-name ${BACKEND_IMAGE_NAME} \
-                            --region ${AWS_REGION} 2>/dev/null || true
-                        aws ecr create-repository --repository-name ${FRONTEND_IMAGE_NAME} \
-                            --region ${AWS_REGION} 2>/dev/null || true
-
-                        # Push images
-                        docker push ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:${BACKEND_IMAGE_TAG}
-                        docker push ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:latest
-                        docker push ${ECR_REGISTRY}/${FRONTEND_IMAGE_NAME}:${FRONTEND_IMAGE_TAG}
-                        docker push ${ECR_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest
-                    '''
-                }
+                sh """
+                docker rmi ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:${BUILD_NUMBER}
+                docker rmi ${params.AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${params.ECR_REPO_NAME}:latest
+		docker images
+                """
             }
-        }
-
-        stage('Deploy to EKS') {
-            steps {
-                echo "🚀 Deploying to EKS..."
-                script {
-                    sh '''
-                        # Configure kubectl for EKS
-                        aws eks update-kubeconfig --name ${EKS_CLUSTER_NAME} --region ${AWS_REGION}
-
-                        # Update image tags in manifests
-                        sed -i "s|IMAGE_TAG|${BACKEND_IMAGE_TAG}|g" k8s/backend-deployment.yaml
-                        sed -i "s|IMAGE_TAG|${FRONTEND_IMAGE_TAG}|g" k8s/frontend-deployment.yaml
-                        sed -i "s|ECR_REGISTRY|${ECR_REGISTRY}|g" k8s/backend-deployment.yaml
-                        sed -i "s|ECR_REGISTRY|${ECR_REGISTRY}|g" k8s/frontend-deployment.yaml
-
-                        # Create/Update namespace
-                        kubectl create namespace calcify-ai --dry-run=client -o yaml | kubectl apply -f -
-
-                        # Apply configurations
-                        kubectl apply -f k8s/backend-configmap.yaml -n calcify-ai
-                        kubectl apply -f k8s/backend-secret.yaml -n calcify-ai || true
-
-                        # Deploy applications
-                        kubectl apply -f k8s/backend-deployment.yaml -n calcify-ai
-                        kubectl apply -f k8s/backend-service.yaml -n calcify-ai
-                        kubectl apply -f k8s/frontend-deployment.yaml -n calcify-ai
-                        kubectl apply -f k8s/frontend-service.yaml -n calcify-ai
-
-                        # Wait for rollout
-                        kubectl rollout status deployment/backend -n calcify-ai --timeout=5m
-                        kubectl rollout status deployment/frontend -n calcify-ai --timeout=5m
-                    '''
-                }
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                echo "✅ Verifying deployment..."
-                script {
-                    sh '''
-                        kubectl get pods -n calcify-ai
-                        kubectl get services -n calcify-ai
-                        kubectl get deployments -n calcify-ai
-                    '''
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            echo "Cleaning up Docker images..."
-            sh 'docker rmi ${ECR_REGISTRY}/${BACKEND_IMAGE_NAME}:${BACKEND_IMAGE_TAG} || true'
-            sh 'docker rmi ${ECR_REGISTRY}/${FRONTEND_IMAGE_NAME}:${FRONTEND_IMAGE_TAG} || true'
-        }
-        success {
-            echo "✅ Pipeline completed successfully!"
-        }
-        failure {
-            echo "❌ Pipeline failed. Check logs above."
         }
     }
 }
