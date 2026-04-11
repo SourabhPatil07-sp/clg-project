@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+.git
+.gitignore
+.env
+.env.local
+npm-debug.log
+.vscode
+.DS_Store
+.pytest_cache
+__pycache__
+*.env
+README.md
+.eslintignore
+eslint/
